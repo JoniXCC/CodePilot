@@ -1,0 +1,2 @@
+# Store text files with LF endings in the repo (the app also runs in Linux containers)
+* text=auto eol=lf
