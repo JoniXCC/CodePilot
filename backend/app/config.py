@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     llm_provider: str = "anthropic"
     # SecretStr keeps the key out of repr()/logs by accident.
     anthropic_api_key: SecretStr | None = None
-    anthropic_model: str = "claude-sonnet-5"
+    anthropic_model: str = "claude-opus-5"
+    anthropic_effort: str = "high"  # low | medium | high | xhigh | max
 
     projects_dir: Path = Path("../examples")
     database_url: str = "sqlite:///./codepilot.db"
