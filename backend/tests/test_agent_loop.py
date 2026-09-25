@@ -5,7 +5,16 @@ from app.agent.events import AgentEvent
 from app.agent.loop import Agent
 from app.agent.registry import ToolContext
 from app.agent.toolset import build_registry
-from app.llm.base import LLMError, LLMProvider, LLMTurn, Message, ToolResultsMessage, ToolSpec
+from app.llm.base import (
+    AssistantMessage,
+    LLMError,
+    LLMProvider,
+    LLMTurn,
+    Message,
+    ToolResultsMessage,
+    ToolSpec,
+    UserMessage,
+)
 from app.llm.scripted_provider import ScriptedProvider, ScriptedStep
 from app.tools.changeset import ChangeSet
 from app.tools.workspace import Workspace
@@ -28,9 +37,7 @@ def run(steps: list[ScriptedStep], workspace: Workspace, **agent_kwargs) -> tupl
 
 
 def last_tool_results(provider: ScriptedProvider) -> ToolResultsMessage:
-    message = provider.seen_messages[-1][-1]
-    assert isinstance(message, ToolResultsMessage)
-    return message
+    return next(m for m in reversed(provider.seen_messages[-1]) if isinstance(m, ToolResultsMessage))
 
 
 HAPPY_PATH = [
@@ -141,9 +148,73 @@ def test_cancellation(workspace: Workspace) -> None:
 
 
 def test_model_stopping_without_finish(workspace: Workspace) -> None:
-    result, _, _ = run([ScriptedStep(tool="list_files")], workspace)
+    result, events, provider = run([ScriptedStep(tool="list_files")], workspace)
     assert result.status == "no_changes"
     assert result.error is None
+    # It was nudged twice before the loop gave up: 1 tool turn + 3 end_turn replies.
+    assert provider.calls_made == 1 and len(provider.seen_messages) == 4
+    assert sum(e.message.startswith("Model paused") for e in events) == 2
+
+
+class PausesOnceProvider(ScriptedProvider):
+    """Replies with prose (no tool call) on its first turn, like small local models often do."""
+
+    def tool_call(self, system: str, messages: list[Message], tools: list[ToolSpec]) -> LLMTurn:
+        if not self.seen_messages:
+            self.seen_messages.append(list(messages))
+            return LLMTurn(message=AssistantMessage(text="The bug is probably in cart.js."), stop_reason="end_turn")
+        return super().tool_call(system, messages, tools)
+
+
+def test_model_is_nudged_to_continue_after_pausing(workspace: Workspace) -> None:
+    provider = PausesOnceProvider(HAPPY_PATH)
+    result = Agent(provider, build_registry()).run("bug", make_context(workspace))
+    assert result.status == "proposed"
+    assert result.tool_calls == 6
+    nudge = provider.seen_messages[1][-1]
+    assert isinstance(nudge, UserMessage) and "finish" in nudge.text
+
+
+def test_repeated_identical_call_is_refused(workspace: Workspace) -> None:
+    search = ScriptedStep(tool="search_code", arguments={"query": "total price"})
+    _, events, provider = run([search, search], workspace)
+    first, second = [m for m in provider.seen_messages[-1] if isinstance(m, ToolResultsMessage)][-2:]
+    assert not first.results[0].is_error
+    assert second.results[0].is_error and "Do not repeat it" in second.results[0].content
+    assert any(e.message == "Skipped: repeated an earlier call" for e in events)
+
+
+def test_repeat_detection_ignores_explicit_default_arguments(workspace: Workspace) -> None:
+    steps = [
+        ScriptedStep(tool="search_code", arguments={"query": "total price"}),
+        ScriptedStep(tool="search_code", arguments={"query": "total price", "is_regex": False, "file_glob": None}),
+    ]
+    _, _, provider = run(steps, workspace)
+    last = [m for m in provider.seen_messages[-1] if isinstance(m, ToolResultsMessage)][-1]
+    assert last.results[0].is_error and "Do not repeat it" in last.results[0].content
+
+
+def test_run_stops_early_when_model_keeps_repeating(workspace: Workspace) -> None:
+    steps = [ScriptedStep(tool="search_code", arguments={"query": "total price"})] * 20
+    result, _, _ = run(steps, workspace)
+    assert result.status == "failed"
+    assert result.error == "Stopped: the model kept repeating the same tool calls"
+    assert result.tool_calls == 6  # 1 real call + 5 refused repeats
+
+
+def test_reading_again_after_an_edit_is_not_a_repeat(workspace: Workspace) -> None:
+    read = ScriptedStep(tool="read_file", arguments={"path": "src/cart.js"})
+    _, _, provider = run([read, HAPPY_PATH[4], read], workspace)
+    last = [m for m in provider.seen_messages[-1] if isinstance(m, ToolResultsMessage)][-1]
+    assert not last.results[0].is_error and "b.price, 0" in last.results[0].content
+
+
+def test_rereading_after_a_failed_edit_is_allowed(workspace: Workspace) -> None:
+    read = ScriptedStep(tool="read_file", arguments={"path": "src/cart.js"})
+    bad_edit = ScriptedStep(tool="replace_code", arguments={"path": "src/cart.js", "old_code": "nope()", "new_code": "x"})
+    _, _, provider = run([read, bad_edit, read], workspace)
+    last = [m for m in provider.seen_messages[-1] if isinstance(m, ToolResultsMessage)][-1]
+    assert not last.results[0].is_error  # the error told the model to re-read; the guard must allow it
 
 
 class FailingProvider(LLMProvider):

@@ -22,6 +22,13 @@ Important constraints:
 """
 
 
+CONTINUE_PROMPT = (
+    "You stopped without calling the finish tool. Keep investigating with the tools "
+    "(search_code, read_file, run_tests), stage a fix with replace_code, then call finish. "
+    "If you are certain no fix is possible, call finish and explain why."
+)
+
+
 def initial_prompt(project_name: str, bug_report: str) -> str:
     return (
         f"Repository: {project_name}\n\n"

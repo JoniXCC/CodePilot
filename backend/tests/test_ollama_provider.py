@@ -73,12 +73,21 @@ def test_arguments_as_json_string_are_parsed() -> None:
     assert provider.tool_call("s", [UserMessage(text="x")], TOOLS).message.tool_calls[0].arguments == {"path": "b.py"}
 
 
-def test_tool_call_written_as_text_is_recovered() -> None:
-    text = '```json\n{"name": "read_file", "arguments": {"path": "src/cart.js"}}\n```'
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"name": "read_file", "arguments": {"path": "src/cart.js"}}',
+        '```json\n{"name": "read_file", "arguments": {"path": "src/cart.js"}}\n```',
+        # Real reply captured from qwen2.5-coder:7b: prose, then the call in a fenced block.
+        "Let's start by reading the `src/cart.js` file.\n\nPlease run the following command:\n\n"
+        '```json\n{"name": "read_file", "arguments": {"path": "src/cart.js"}}\n```',
+    ],
+)
+def test_tool_call_written_as_text_is_recovered(text: str) -> None:
     turn = make_provider(reply({"content": text})).tool_call("s", [UserMessage(text="x")], TOOLS)
     assert turn.stop_reason == "tool_use"
+    assert turn.message.tool_calls[0].name == "read_file"
     assert turn.message.tool_calls[0].arguments == {"path": "src/cart.js"}
-    assert turn.message.text == ""
 
 
 def test_json_text_naming_an_unknown_tool_is_left_as_text() -> None:

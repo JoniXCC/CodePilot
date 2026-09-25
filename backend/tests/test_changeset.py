@@ -87,3 +87,14 @@ def test_crlf_line_endings_preserved(workspace: Workspace, repo: Path) -> None:
     changes.replace_code("win.js", "const a = 1;\nconst b = 2;", "const a = 1;\nconst b = 3;")
     changes.apply()
     assert (repo / "win.js").read_bytes() == b"const a = 1;\r\nconst b = 3;\r\n"
+
+
+def test_replace_code_accepts_snippet_copied_with_line_numbers(workspace: Workspace) -> None:
+    changes = ChangeSet(workspace)
+    changes.replace_code("src/cart.js", f"   2 | {ORIGINAL_LINE}", f"   2 | {FIXED_LINE}")
+    assert FIXED_LINE in (changes.current_content("src/cart.js") or "")
+
+
+def test_not_found_error_points_at_closest_line(workspace: Workspace) -> None:
+    with pytest.raises(ToolError, match=r"closest line in the file is: 'return items.reduce"):
+        ChangeSet(workspace).replace_code("src/cart.js", "return items.reduce((a, b) => a + b.cost);", "x")

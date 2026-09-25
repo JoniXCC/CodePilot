@@ -20,7 +20,7 @@ CodePilot is a full-stack portfolio project: a FastAPI backend runs an LLM agent
 - **Session history** — every run (actions, files inspected/modified, diff, test results, status) is stored in SQLite via SQLAlchemy (PostgreSQL-ready).
 - **Evaluation harness** — 10 broken repositories (JavaScript + Python) with expected file, bug location and test; measures file/location accuracy, fix success, tool calls and time, with anti-cheating checks.
 - **Swappable LLM providers** — the agent depends on an `LLMProvider` interface with two real implementations: **Claude** (Anthropic API) and **local models via Ollama** (free, runs on your GPU), plus a scripted fake that makes the whole system testable offline.
-- **181 automated tests**, including dedicated security tests.
+- **188 automated tests**, including dedicated security tests.
 
 ## Tech stack
 
@@ -193,7 +193,7 @@ python -m app.cli ../demo-projects/shopping-cart "When the shopping cart is empt
 
 ```bash
 cd backend
-python -m pytest -q          # 181 tests; JavaScript cases are skipped if npm is missing
+python -m pytest -q          # 188 tests; JavaScript cases are skipped if npm is missing
 cd ../frontend
 npm run build                # type-check + production build
 ```
@@ -268,7 +268,30 @@ Tests passed after patch: 10/10
 Average tool calls: 5.0
 ```
 
-LLM run: *not yet recorded.* Run `python -m app.evaluation` with an API key and paste the summary here.
+**Local model: `qwen2.5-coder:7b` via Ollama** (RTX 4060 Laptop, 8 GB; single run, temperature 0.2):
+
+```
+Agent Evaluation
+Provider: ollama (qwen2.5-coder:7b)
+Cases: 10
+Correct file identified: 6/10
+Correct bug location: 5/10
+Successful fixes: 3/10
+Tests passed after patch: 3/10
+Average tool calls: 19.9
+Average time: 51.8s
+```
+
+What the failures show (this is the useful part of an evaluation):
+
+- **Repetition loops** — the 7B model often re-issued the same search after it returned nothing. The agent loop now refuses identical repeat calls and stops a run after 5 of them; 4 runs ended this way.
+- **Step-limit exhaustion** — 4 runs hit the 25-step limit. Two of them (`fahrenheit-precedence`, `mutable-default-basket`) had already staged a correct fix, so the patch still counted.
+- **Right file, wrong fix** — in `age-boundary` and `pagination-off-by-one` it found the exact lines but never staged a working patch; in `cart-empty-nan` it patched the symptom (early return in `calculateTotal`) instead of the cause.
+- **Prose instead of tool calls** — small models often describe the next call in text; `OllamaProvider` recovers JSON tool calls from the reply, and the loop nudges the model when it stops without calling `finish`. Both were added after observing these failures.
+
+Results vary between runs (the cart bug was fixed in one manual run and not in the evaluation run), so a single 10-case run is indicative, not a precise score.
+
+**Claude:** *not yet recorded.* Set `LLM_PROVIDER=anthropic` plus an API key and run `python -m app.evaluation` to compare.
 
 ## Key concepts (interview notes)
 

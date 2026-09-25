@@ -82,7 +82,7 @@ class OllamaProvider(LLMProvider):
             # Some local models write the call as JSON text instead of using the tool_calls field.
             fallback = self._tool_call_from_text(text, tool_names)
             if fallback:
-                tool_calls, text = [fallback], ""
+                tool_calls = [fallback]
 
         return LLMTurn(
             message=AssistantMessage(text=text, tool_calls=tool_calls),
@@ -105,18 +105,20 @@ class OllamaProvider(LLMProvider):
 
     @staticmethod
     def _tool_call_from_text(text: str, tool_names: set[str]) -> ToolCall | None:
-        candidate = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        if not candidate.startswith("{"):
-            return None
-        try:
-            data = json.loads(candidate)
-        except json.JSONDecodeError:
-            return None
-        name = data.get("name") if isinstance(data, dict) else None
-        arguments = data.get("arguments", data.get("parameters", {})) if isinstance(data, dict) else {}
-        if name not in tool_names or not isinstance(arguments, dict):
-            return None
-        return ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=name, arguments=arguments)
+        """Find a {"name": ..., "arguments": {...}} object anywhere in the reply, e.g. in a ```json block
+        after some prose. Only names of real tools are accepted."""
+        decoder = json.JSONDecoder()
+        for start in (i for i, char in enumerate(text) if char == "{"):
+            try:
+                data, _end = decoder.raw_decode(text, start)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict) or data.get("name") not in tool_names:
+                continue
+            arguments = data.get("arguments", data.get("parameters", {}))
+            if isinstance(arguments, dict):
+                return ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=data["name"], arguments=arguments)
+        return None
 
     @staticmethod
     def _stop_reason(done_reason: str | None, tool_calls: list[ToolCall]) -> StopReason:

@@ -6,6 +6,7 @@ after explicit approval - writes anything.
 """
 
 import difflib
+import re
 
 from pydantic import BaseModel
 
@@ -42,6 +43,24 @@ def match_line_endings(reference: str | None, text: str) -> str:
     if reference and "\r\n" in reference and "\r\n" not in text:
         return text.replace("\n", "\r\n")
     return text
+
+
+# The "  12 | " prefix that read_file adds; models sometimes copy it into their edits.
+LINE_NUMBER_PREFIX = re.compile(r"^\s*\d+ \| ?", re.MULTILINE)
+
+
+def strip_line_numbers(text: str) -> str:
+    lines = text.splitlines()
+    if lines and all(LINE_NUMBER_PREFIX.match(line) for line in lines if line.strip()):
+        return LINE_NUMBER_PREFIX.sub("", text)
+    return text
+
+
+def closest_line_hint(content: str, snippet: str) -> str:
+    first_line = next((line.strip() for line in snippet.splitlines() if line.strip()), "")
+    candidates = [line.strip() for line in content.splitlines() if line.strip()]
+    match = difflib.get_close_matches(first_line, candidates, n=1, cutoff=0.5)
+    return f" The closest line in the file is: {match[0]!r}" if match else ""
 
 
 class ChangeSet:
@@ -88,10 +107,15 @@ class ChangeSet:
             raise ToolError(f"File not found: {path}")
         if not old:
             raise ToolError("old_code must not be empty")
+        if old not in current:
+            old, new = strip_line_numbers(old), strip_line_numbers(new)
         old, new = match_line_endings(current, old), match_line_endings(current, new)
         count = current.count(old)
         if count == 0:
-            raise ToolError("old_code was not found in the file; read the file and copy it exactly")
+            raise ToolError(
+                "old_code was not found in the file; copy it exactly from read_file, without the line numbers."
+                + closest_line_hint(current, old)
+            )
         if count > 1:
             raise ToolError(f"old_code matches {count} places; include more surrounding lines")
         return self.write_file(path, current.replace(old, new, 1))

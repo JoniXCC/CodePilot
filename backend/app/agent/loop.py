@@ -6,6 +6,7 @@ until the model calls `finish`, stops on its own, or we hit the step limit.
 The loop never writes files: edits accumulate in the ChangeSet for the user to review.
 """
 
+import json
 import logging
 import threading
 import time
@@ -14,7 +15,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.agent.events import AgentEvent, EventSink, ignore_events
-from app.agent.prompts import SYSTEM_PROMPT, initial_prompt
+from app.agent.prompts import CONTINUE_PROMPT, SYSTEM_PROMPT, initial_prompt
 from app.agent.registry import ToolContext, ToolRegistry
 from app.agent.toolset import FinishArgs
 from app.llm.base import LLMError, LLMProvider, Message, ToolResult, ToolResultsMessage, UserMessage
@@ -22,6 +23,18 @@ from app.llm.base import LLMError, LLMProvider, Message, ToolResult, ToolResults
 logger = logging.getLogger("codepilot.agent")
 
 RunStatus = Literal["proposed", "no_changes", "failed", "cancelled"]
+
+# Smaller models often reply with prose instead of calling `finish`; nudge them back on track.
+MAX_CONTINUE_NUDGES = 2
+# Identical repeated tool calls are a common failure loop; refuse repeats and stop after this many.
+MAX_REPEATED_CALLS = 5
+EDIT_TOOLS = {"replace_code", "write_file"}
+
+REPEAT_MESSAGE = (
+    "You already called {name} with exactly these arguments and got the result earlier in this "
+    "conversation. Do not repeat it. Try a different approach: read a file you have found, search "
+    "for a different term, stage a fix with replace_code, or call finish."
+)
 
 
 class AgentRunResult(BaseModel):
@@ -55,6 +68,8 @@ class Agent:
         self.max_steps = max_steps
         self.emit = on_event
         self.cancel_event = cancel_event or threading.Event()
+        self._seen_calls: dict[str, str] = {}  # call key -> tool name
+        self._repeats = 0
 
     def run(self, bug_report: str, context: ToolContext) -> AgentRunResult:
         started = time.perf_counter()
@@ -63,6 +78,8 @@ class Agent:
         tool_calls = steps = input_tokens = output_tokens = 0
         error: str | None = None
         cancelled = False
+        nudges = 0
+        self._seen_calls, self._repeats = {}, 0
 
         self.emit(AgentEvent(type="status", message="Analyzing bug report"))
 
@@ -87,13 +104,21 @@ class Agent:
                 messages.append(ToolResultsMessage(results=results))
                 if context.final_report is not None:
                     break
+                if self._repeats >= MAX_REPEATED_CALLS:
+                    error = "Stopped: the model kept repeating the same tool calls"
+                    break
                 continue
 
             if turn.stop_reason == "refusal":
                 error = "The model declined to continue with this request"
             elif turn.stop_reason == "max_tokens":
                 error = "The model response was cut off (max tokens reached)"
-            # "end_turn": the model stopped without calling finish - use what we have.
+            elif nudges < MAX_CONTINUE_NUDGES:
+                # "end_turn" without calling finish: remind the model how to proceed.
+                nudges += 1
+                self.emit(AgentEvent(type="status", message="Model paused without a result; asking it to continue"))
+                messages.append(UserMessage(text=CONTINUE_PROMPT))
+                continue
             break
         else:
             error = f"Stopped after reaching the step limit ({self.max_steps})"
@@ -113,10 +138,28 @@ class Agent:
         )
         return result
 
+    def _is_repeat(self, name: str, arguments: dict, context: ToolContext) -> bool:
+        # Staged edits change what read_file/get_git_diff return, so they're part of the key.
+        normalized = self.registry.normalize(name, arguments)
+        key = json.dumps([name, normalized, context.changeset.diff()], sort_keys=True, default=str)
+        if key in self._seen_calls:
+            return True
+        self._seen_calls[key] = name
+        return False
+
     def _run_tool(self, call_id: str, name: str, arguments: dict, context: ToolContext) -> ToolResult:
         summary = self.registry.summarize(name, arguments)
         self.emit(AgentEvent(type="tool_started", message=summary, tool=name, call_id=call_id))
+        if self._is_repeat(name, arguments, context):
+            self._repeats += 1
+            message = REPEAT_MESSAGE.format(name=name)
+            self.emit(AgentEvent(type="tool_finished", message="Skipped: repeated an earlier call", tool=name,
+                                 call_id=call_id, success=True, warning=True, detail=message, duration_ms=0))
+            return ToolResult(tool_call_id=call_id, content=message, is_error=True)
         outcome = self.registry.execute(name, arguments, context)
+        if outcome.is_error and name in EDIT_TOOLS:
+            # A failed edit tells the model to re-read the file - so that re-read must not count as a repeat.
+            self._seen_calls = {k: n for k, n in self._seen_calls.items() if n != "read_file"}
         self.emit(
             AgentEvent(
                 type="tool_finished",

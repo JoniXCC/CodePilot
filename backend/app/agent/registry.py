@@ -89,6 +89,16 @@ class ToolRegistry:
         except ValidationError:
             return f"Calling {name}"
 
+    def normalize(self, name: str, raw_args: dict[str, Any]) -> dict[str, Any]:
+        """Arguments with defaults filled in, so {"query": "x"} and {"query": "x", "is_regex": false} compare equal."""
+        tool = self._tools.get(name)
+        if tool is None:
+            return raw_args
+        try:
+            return tool.args_model.model_validate(raw_args).model_dump()
+        except ValidationError:
+            return raw_args
+
     def execute(self, name: str, raw_args: dict[str, Any], context: ToolContext) -> ToolOutcome:
         started = time.perf_counter()
         summary = self.summarize(name, raw_args)
