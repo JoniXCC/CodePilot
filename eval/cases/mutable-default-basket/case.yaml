@@ -1,0 +1,13 @@
+id: mutable-default-basket
+language: python
+bug_description: >
+  A newly created shopping basket already contains items that a previous customer added.
+expected_file: shop/basket.py
+expected_lines: [2, 3]
+expected_test: test_new_baskets_are_independent
+test_command: python -m pytest -q -rA
+protected_paths: [tests/]
+reference_fix:
+  - path: shop/basket.py
+    old: "    def __init__(self, items: list[str] = []) -> None:\n        self.items = items"
+    new: "    def __init__(self, items: list[str] | None = None) -> None:\n        self.items = list(items) if items else []"

@@ -1,0 +1,13 @@
+id: average-empty
+language: python
+bug_description: >
+  Generating the class report crashes with ZeroDivisionError when a class has no scores yet.
+expected_file: reports/stats.py
+expected_lines: [1, 2]
+expected_test: test_empty_class_summary
+test_command: python -m pytest -q -rA
+protected_paths: [tests/]
+reference_fix:
+  - path: reports/stats.py
+    old: "    return sum(values) / len(values)"
+    new: "    if not values:\n        return 0.0\n    return sum(values) / len(values)"

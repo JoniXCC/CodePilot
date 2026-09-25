@@ -1,0 +1,14 @@
+id: pagination-off-by-one
+language: javascript
+bug_description: >
+  The product list shows 4 items per page even though the page size is 3, and the
+  last item of each page appears again at the top of the next page.
+expected_file: src/paginate.js
+expected_lines: [4, 5]
+expected_test: each page has pageSize items
+test_command: npm test
+protected_paths: [test/]
+reference_fix:
+  - path: src/paginate.js
+    old: "  const end = start + pageSize + 1;"
+    new: "  const end = start + pageSize;"

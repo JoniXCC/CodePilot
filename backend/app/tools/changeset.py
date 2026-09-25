@@ -96,6 +96,14 @@ class ChangeSet:
             raise ToolError(f"old_code matches {count} places; include more surrounding lines")
         return self.write_file(path, current.replace(old, new, 1))
 
+    @classmethod
+    def restore(cls, workspace: Workspace, changes: list[FileChange]) -> "ChangeSet":
+        """Rebuild a change set saved earlier (e.g. loaded from the database for approval)."""
+        changeset = cls(workspace)
+        for change in changes:
+            changeset._changes[changeset._key(change.path)] = change
+        return changeset
+
     def diff(self) -> str:
         return "".join(unified_diff(c.path, c.original, c.proposed) for c in self.changes)
 

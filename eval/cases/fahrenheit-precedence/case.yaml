@@ -1,0 +1,13 @@
+id: fahrenheit-precedence
+language: python
+bug_description: >
+  The forecast says 212°F is 194.2°C, but it should be 100°C.
+expected_file: weather/convert.py
+expected_lines: [1, 2]
+expected_test: test_boiling_point
+test_command: python -m pytest -q -rA
+protected_paths: [tests/]
+reference_fix:
+  - path: weather/convert.py
+    old: "    return fahrenheit - 32 * 5 / 9"
+    new: "    return (fahrenheit - 32) * 5 / 9"

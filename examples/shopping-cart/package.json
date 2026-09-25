@@ -1,0 +1,9 @@
+{
+  "name": "shopping-cart",
+  "version": "1.0.0",
+  "description": "Tiny shopping cart pricing module (CodePilot demo project with a deliberate bug)",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

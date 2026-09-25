@@ -1,0 +1,7 @@
+{
+  "name": "user-profiles",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

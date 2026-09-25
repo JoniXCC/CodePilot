@@ -20,3 +20,6 @@ eval/results/*.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Generated demo repositories
+demo-projects/

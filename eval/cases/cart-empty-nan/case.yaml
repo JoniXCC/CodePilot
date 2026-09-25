@@ -1,0 +1,14 @@
+id: cart-empty-nan
+language: javascript
+bug_description: When the shopping cart is empty, the total price becomes NaN.
+# Reuses the demo project so the showcase bug is part of the benchmark.
+repo_path: ../../../examples/shopping-cart
+expected_file: src/cart.js
+expected_lines: [20, 28]
+expected_test: empty cart total is zero
+test_command: npm test
+protected_paths: [test/]
+reference_fix:
+  - path: src/cart.js
+    old: "  return tier?.rate;"
+    new: "  return tier?.rate ?? 0;"

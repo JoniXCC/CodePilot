@@ -1,0 +1,13 @@
+id: age-boundary
+language: javascript
+bug_description: >
+  Users whose 18th birthday is today are told they are too young to register.
+expected_file: src/eligibility.js
+expected_lines: [11, 13]
+expected_test: users who turn 18 today can register
+test_command: npm test
+protected_paths: [test/]
+reference_fix:
+  - path: src/eligibility.js
+    old: "  return ageOn(birthDate, today) > MINIMUM_AGE;"
+    new: "  return ageOn(birthDate, today) >= MINIMUM_AGE;"

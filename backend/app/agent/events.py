@@ -21,6 +21,7 @@ class AgentEvent(BaseModel):
     tool: str | None = None
     call_id: str | None = None  # links a tool_finished event to its tool_started event
     success: bool | None = None
+    warning: bool = False  # succeeded, but with a negative result such as failing tests
     detail: str | None = None  # trimmed tool output for the expandable timeline row
     duration_ms: int | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

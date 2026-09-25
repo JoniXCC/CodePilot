@@ -124,6 +124,7 @@ class Agent:
                 tool=name,
                 call_id=call_id,
                 success=not outcome.is_error,
+                warning=outcome.warning,
                 detail=outcome.content[:2_000],
                 duration_ms=outcome.duration_ms,
             )

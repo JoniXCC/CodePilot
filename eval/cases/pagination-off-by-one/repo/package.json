@@ -1,0 +1,7 @@
+{
+  "name": "product-listing",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

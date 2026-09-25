@@ -139,6 +139,14 @@ def test_real_sdk_request_shape_with_mock_transport() -> None:
     assert captured["body"]["messages"][1]["content"][0]["id"] == "toolu_1"
 
 
+def test_missing_credentials_become_llm_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    provider = AnthropicProvider(api_key=None, model="claude-opus-5")
+    with pytest.raises(LLMError, match="No Anthropic API key configured"):
+        provider.tool_call("s", [UserMessage(text="x")], TOOLS)
+
+
 def test_generate_returns_text() -> None:
     fake = FakeMessages(response([SimpleNamespace(type="text", text=" Fix cart total \n")], "end_turn"))
     assert make_provider(fake).generate("system", "prompt") == "Fix cart total"

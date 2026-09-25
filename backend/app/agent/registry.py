@@ -43,6 +43,7 @@ class ToolContext:
 class ToolOutput:
     content: str  # what the LLM sees
     note: str = ""  # short human-readable result for the timeline, e.g. "3 matches in cart.js"
+    warning: bool = False  # the tool worked, but the result is bad news (e.g. tests failing)
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class ToolOutcome(BaseModel):
     is_error: bool
     summary: str
     note: str = ""
+    warning: bool = False
     duration_ms: int
 
 
@@ -130,5 +132,6 @@ class ToolRegistry:
             is_error=error is not None,
             summary=summary,
             note=error or output.note,
+            warning=error is None and output.warning,
             duration_ms=duration_ms,
         )

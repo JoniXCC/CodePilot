@@ -1,0 +1,7 @@
+{
+  "name": "registration",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

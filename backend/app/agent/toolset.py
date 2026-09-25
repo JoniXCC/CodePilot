@@ -120,14 +120,15 @@ def _command_note(result: shell.CommandResult) -> str:
 
 def _run_command(ctx: ToolContext, args: RunCommandArgs) -> ToolOutput:
     result = shell.run_command(args.command, ctx.workspace, ctx.command_timeout)
-    return ToolOutput(_format_command(result), _command_note(result))
+    return ToolOutput(_format_command(result), _command_note(result), warning=not result.succeeded)
 
 
 def _run_tests(ctx: ToolContext, args: NoArgs) -> ToolOutput:
     result = shell.run_tests(ctx.workspace, ctx.command_timeout)
     note = "Tests passed" if result.succeeded else _command_note(result).replace("Failed", "Tests failed")
     reminder = "\n(Note: tests ran against files on disk; staged changes are not applied yet.)"
-    return ToolOutput(_format_command(result) + (reminder if not ctx.changeset.is_empty() else ""), note)
+    output = _format_command(result) + (reminder if not ctx.changeset.is_empty() else "")
+    return ToolOutput(output, note, warning=not result.succeeded)
 
 
 def _get_git_diff(ctx: ToolContext, args: NoArgs) -> ToolOutput:
@@ -152,7 +153,7 @@ def _git_status(ctx: ToolContext, args: NoArgs) -> ToolOutput:
 
 def _record_hypothesis(ctx: ToolContext, args: HypothesisArgs) -> ToolOutput:
     ctx.hypothesis = args.hypothesis
-    return ToolOutput("Hypothesis recorded.", args.hypothesis)
+    return ToolOutput("Hypothesis recorded.")  # the text itself is shown as a separate hypothesis event
 
 
 def _finish(ctx: ToolContext, args: FinishArgs) -> ToolOutput:

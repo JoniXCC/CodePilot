@@ -1,0 +1,13 @@
+id: discount-code-case
+language: python
+bug_description: >
+  Discount code "save10" is rejected at checkout, but typing "SAVE10" works.
+expected_file: checkout/discounts.py
+expected_lines: [4, 5]
+expected_test: test_codes_are_case_insensitive
+test_command: python -m pytest -q -rA
+protected_paths: [tests/]
+reference_fix:
+  - path: checkout/discounts.py
+    old: "    return DISCOUNT_CODES.get(code.strip(), 0.0)"
+    new: "    return DISCOUNT_CODES.get(code.strip().upper(), 0.0)"

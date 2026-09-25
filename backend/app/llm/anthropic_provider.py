@@ -46,7 +46,12 @@ class AnthropicProvider(LLMProvider):
                 **kwargs,
             )
         except anthropic.AuthenticationError as exc:
-            raise LLMError("Anthropic API key is missing or invalid") from exc
+            raise LLMError("Anthropic API key is invalid") from exc
+        except TypeError as exc:
+            # The SDK raises TypeError (before any HTTP call) when no credentials exist at all.
+            if "authentication method" in str(exc):
+                raise LLMError("No Anthropic API key configured - set ANTHROPIC_API_KEY in .env") from exc
+            raise
         except anthropic.RateLimitError as exc:
             raise LLMError("Anthropic rate limit reached; try again shortly") from exc
         except anthropic.APIStatusError as exc:

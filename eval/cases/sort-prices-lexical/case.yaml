@@ -1,0 +1,13 @@
+id: sort-prices-lexical
+language: javascript
+bug_description: >
+  Sorting products by price from low to high shows a £100.00 desk before a £25.00 lamp.
+expected_file: src/catalog.js
+expected_lines: [1, 3]
+expected_test: sorts numerically by price
+test_command: npm test
+protected_paths: [test/]
+reference_fix:
+  - path: src/catalog.js
+    old: "  return String(a.price).localeCompare(String(b.price));"
+    new: "  return a.price - b.price;"

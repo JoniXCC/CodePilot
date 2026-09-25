@@ -1,0 +1,13 @@
+id: word-count-spaces
+language: python
+bug_description: >
+  The article word count is too high when the text contains double spaces or line breaks.
+expected_file: text/analysis.py
+expected_lines: [1, 4]
+expected_test: test_extra_whitespace_is_ignored
+test_command: python -m pytest -q -rA
+protected_paths: [tests/]
+reference_fix:
+  - path: text/analysis.py
+    old: "    return len(text.split(\" \"))"
+    new: "    return len(text.split())"

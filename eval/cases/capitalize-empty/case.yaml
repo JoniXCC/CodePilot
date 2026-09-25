@@ -1,0 +1,14 @@
+id: capitalize-empty
+language: javascript
+bug_description: >
+  The profile page crashes with "TypeError: Cannot read properties of undefined
+  (reading 'toUpperCase')" for users who have no last name.
+expected_file: src/strings.js
+expected_lines: [1, 3]
+expected_test: users without a last name get just the first name
+test_command: npm test
+protected_paths: [test/]
+reference_fix:
+  - path: src/strings.js
+    old: "function capitalize(word) {\n"
+    new: "function capitalize(word) {\n  if (!word) return \"\";\n"
