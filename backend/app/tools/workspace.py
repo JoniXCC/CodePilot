@@ -58,7 +58,8 @@ class Workspace:
 
     def resolve(self, relative_path: str) -> Path:
         """Turn an agent-supplied relative path into a safe absolute path, or raise."""
-        cleaned = (relative_path or ".").strip()
+        # Treat "\" as a separator on every OS, so "..\x" is caught on Linux too (there it's a valid filename char).
+        cleaned = (relative_path or ".").strip().replace("\\", "/")
         # ':' blocks Windows drive-relative paths ("C:foo") and alternate data streams.
         if ":" in cleaned or cleaned.startswith(("/", "\\")):
             raise PathSecurityError(f"Absolute paths are not allowed: {relative_path!r}")

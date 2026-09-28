@@ -1,12 +1,27 @@
 # CodePilot
 
+[![CI](https://github.com/JoniXCC/CodePilot/actions/workflows/ci.yml/badge.svg)](https://github.com/JoniXCC/CodePilot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **A local AI debugging agent that reads a bug report, investigates a real repository, proposes a fix as a Git diff, and only touches your files after you approve.**
 
 CodePilot is a full-stack portfolio project: a FastAPI backend runs an LLM agent loop over a set of *sandboxed* tools (file reading, code search, whitelisted test commands, Git). A React UI streams what the agent is doing in real time, shows the proposed patch for review, applies it on approval, runs the tests and can create a commit. An evaluation harness scores the agent on a benchmark of repositories with known bugs.
 
-> Screenshot placeholders — add your own after running the app:
->
-> `docs/screenshots/dashboard.png` · `docs/screenshots/session-timeline.png` · `docs/screenshots/diff-review.png` · `docs/screenshots/evaluation.png`
+### Screenshots
+
+*From a real run with a local model (`qwen2.5-coder:7b` via Ollama) — not a mock-up.*
+
+**Agent session** — live activity timeline, findings, and the proposed patch waiting for approval:
+
+![Agent session with proposed diff](docs/screenshots/diff-review.png)
+
+| Dashboard | History |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![History](docs/screenshots/history.png) |
+
+**Evaluation** — the benchmark results page:
+
+![Evaluation results](docs/screenshots/evaluation.png)
 
 ---
 
@@ -20,7 +35,7 @@ CodePilot is a full-stack portfolio project: a FastAPI backend runs an LLM agent
 - **Session history** — every run (actions, files inspected/modified, diff, test results, status) is stored in SQLite via SQLAlchemy (PostgreSQL-ready).
 - **Evaluation harness** — 10 broken repositories (JavaScript + Python) with expected file, bug location and test; measures file/location accuracy, fix success, tool calls and time, with anti-cheating checks.
 - **Swappable LLM providers** — the agent depends on an `LLMProvider` interface with two real implementations: **Claude** (Anthropic API) and **local models via Ollama** (free, runs on your GPU), plus a scripted fake that makes the whole system testable offline.
-- **188 automated tests**, including dedicated security tests.
+- **191 automated tests**, including dedicated security tests.
 
 ## Tech stack
 
@@ -147,6 +162,10 @@ The LLM's tool arguments are treated as **untrusted input**. Safety is enforced 
 Switching is one line in `.env` — no code changes, which is the point of the `LLMProvider` interface.
 
 ```bash
+# 0. Get the code
+git clone https://github.com/JoniXCC/CodePilot.git
+cd CodePilot
+
 # 1. Configuration
 cp .env.example .env          # then set ANTHROPIC_API_KEY, or LLM_PROVIDER=ollama
 
@@ -163,6 +182,8 @@ cd frontend
 npm install
 npm run dev                   # http://localhost:5173
 ```
+
+> **Windows PowerShell:** if `npm` fails with *"running scripts is disabled on this system"*, use `npm.cmd run dev` instead.
 
 Run `python -m app.demo` again at any time to reset the demo project to its buggy state.
 
@@ -193,7 +214,7 @@ python -m app.cli ../demo-projects/shopping-cart "When the shopping cart is empt
 
 ```bash
 cd backend
-python -m pytest -q          # 188 tests; JavaScript cases are skipped if npm is missing
+python -m pytest -q          # 191 tests; JavaScript cases are skipped if npm is missing
 cd ../frontend
 npm run build                # type-check + production build
 ```
@@ -289,7 +310,7 @@ What the failures show (this is the useful part of an evaluation):
 - **Right file, wrong fix** — in `age-boundary` and `pagination-off-by-one` it found the exact lines but never staged a working patch; in `cart-empty-nan` it patched the symptom (early return in `calculateTotal`) instead of the cause.
 - **Prose instead of tool calls** — small models often describe the next call in text; `OllamaProvider` recovers JSON tool calls from the reply, and the loop nudges the model when it stops without calling `finish`. Both were added after observing these failures.
 
-Results vary between runs (the cart bug was fixed in one manual run and not in the evaluation run), so a single 10-case run is indicative, not a precise score.
+Results vary between runs: the cart bug was fixed in one manual run but not in the evaluation run, and while capturing the screenshots above it took 6 attempts to get a patch (5 runs ended in repetition loops). A single 10-case run is indicative, not a precise score.
 
 **Claude:** *not yet recorded.* Set `LLM_PROVIDER=anthropic` plus an API key and run `python -m app.evaluation` to compare.
 

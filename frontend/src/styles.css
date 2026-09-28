@@ -140,7 +140,7 @@ button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accen
 .timeline-title {
   all: unset; display: block; cursor: pointer; overflow-wrap: anywhere;
 }
-.timeline-title:disabled { cursor: default; }
+.timeline-title:disabled { cursor: default; opacity: 1; } /* not faded: it is just a row without details */
 .timeline-title:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
 .timeline-note { color: var(--muted); }
 .timeline-duration { color: var(--muted); font-size: 0.75rem; margin-left: 0.5rem; }
